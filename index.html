@@ -1,0 +1,2223 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>إدارة محل القهوة — نظام الكاشير والمشتريات والديون</title>
+
+  <!-- تحميل خط عربي أنيق (Cairo) و Tailwind CSS -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Cairo', 'sans-serif'],
+          },
+          colors: {
+            espresso: {
+              950: '#160d08',
+              900: '#24140c',
+              800: '#381f13',
+              700: '#4f2c1a',
+              600: '#6b3d24',
+            },
+            cream: {
+              50: '#fdfaf6',
+              100: '#f8f1e7',
+              200: '#efe2cf',
+              300: '#e2cca9',
+            },
+            latte: {
+              400: '#c8965a',
+              500: '#b67d3e',
+              600: '#9a632b',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Cairo', sans-serif;
+      background-color: #fdfaf6;
+      color: #24140c;
+      overflow-x: hidden;
+    }
+
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f8f1e7;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbb08c;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #b67d3e;
+    }
+
+    .card-surface {
+      background: #ffffff;
+      border: 1px solid #efe2cf;
+      box-shadow: 0 6px 24px -8px rgba(36, 20, 12, 0.08);
+    }
+
+    .pressable {
+      transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
+    }
+    .pressable:active {
+      transform: scale(0.97);
+    }
+
+    @media print {
+      header, footer, #toast-container, #confirm-modal, #pin-modal, .no-print {
+        display: none !important;
+      }
+      body {
+        background: #ffffff !important;
+      }
+      .card-surface {
+        box-shadow: none !important;
+        border: 1px solid #d6c7b2 !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-cream-50 text-espresso-900">
+
+  <!-- الشريط العلوي الرئيسي -->
+  <header class="sticky top-0 z-30 bg-espresso-900 text-cream-50 border-b border-espresso-700 shadow-md">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-latte-400 to-espresso-700 flex items-center justify-center shadow-inner border border-latte-400/40 text-2xl">
+          ☕
+        </div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-cream-50 leading-tight">
+            قهوتي — نظام الإدارة والمحاسبة
+          </h1>
+          <p class="text-xs text-cream-200/80 flex items-center gap-1.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>حفظ تلقائي محلي 100% في المتصفح</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- أزرار التنقل الرئيسية -->
+      <nav id="desktop-nav" class="hidden md:flex items-center gap-1.5 bg-espresso-800/90 p-1.5 rounded-2xl border border-espresso-700">
+        <button data-tab="dashboard" class="nav-btn px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+          <span>📊</span>
+          <span>لوحة التحكم</span>
+        </button>
+        <button data-tab="cashier" class="nav-btn px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+          <span>🧾</span>
+          <span>الكاشير والمبيعات</span>
+        </button>
+        <button data-tab="debts" class="nav-btn px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+          <span>📒</span>
+          <span>ديون المحلات</span>
+        </button>
+        <button data-tab="purchases" class="nav-btn px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+          <span>📦</span>
+          <span>البضاعة الواردة</span>
+        </button>
+      </nav>
+
+      <!-- مؤشر سريع للديون وحالة القفل -->
+      <div class="flex items-center gap-2 text-xs sm:text-sm">
+        <button id="header-pin-status-btn" onclick="openPinSettingsModal()" class="pressable bg-espresso-800 hover:bg-espresso-700 border border-espresso-700 px-3 py-1.5 rounded-xl text-right flex items-center gap-2">
+          <span id="header-pin-icon">🔓</span>
+          <div>
+            <span class="text-cream-200/75 block text-[10px]">حماية الحسابات</span>
+            <span id="header-pin-label" class="font-extrabold text-cream-100 text-xs">غير مفعّل</span>
+          </div>
+        </button>
+        <div class="bg-espresso-800 border border-espresso-700 px-3 py-1.5 rounded-xl text-right">
+          <span class="text-cream-200/75 block text-[11px]">ديون المحلات لنا</span>
+          <span id="header-total-debts" class="font-extrabold text-amber-300">0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- شريط تنقل للهواتف -->
+    <div class="md:hidden border-t border-espresso-800 bg-espresso-950/95 px-2 py-1.5">
+      <div id="mobile-nav" class="grid grid-cols-4 gap-1">
+        <button data-tab="dashboard" class="nav-btn-mobile py-2 px-1 rounded-xl text-[11px] font-bold flex flex-col items-center gap-0.5 transition">
+          <span class="text-base">📊</span>
+          <span>الرئيسية</span>
+        </button>
+        <button data-tab="cashier" class="nav-btn-mobile py-2 px-1 rounded-xl text-[11px] font-bold flex flex-col items-center gap-0.5 transition">
+          <span class="text-base">🧾</span>
+          <span>الكاشير</span>
+        </button>
+        <button data-tab="debts" class="nav-btn-mobile py-2 px-1 rounded-xl text-[11px] font-bold flex flex-col items-center gap-0.5 transition">
+          <span class="text-base">📒</span>
+          <span>الديون</span>
+        </button>
+        <button data-tab="purchases" class="nav-btn-mobile py-2 px-1 rounded-xl text-[11px] font-bold flex flex-col items-center gap-0.5 transition">
+          <span class="text-base">📦</span>
+          <span>الواردة</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- حاوية الإشعارات والرسائل التفاعلية -->
+  <div id="toast-container" class="fixed bottom-5 left-4 right-4 sm:left-auto sm:right-6 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+
+  <!-- نافذة التأكيد المخصصة -->
+  <div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-espresso-950/65 p-4">
+    <div class="card-surface w-full max-w-md rounded-3xl p-6 space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center text-xl font-bold">⚠️</div>
+        <h3 id="confirm-title" class="text-lg font-extrabold text-espresso-900">تأكيد الإجراء</h3>
+      </div>
+      <p id="confirm-message" class="text-sm text-espresso-700 leading-relaxed"></p>
+      <div class="flex items-center justify-end gap-2.5 pt-2">
+        <button id="confirm-cancel-btn" class="pressable px-4 py-2.5 rounded-xl bg-cream-200 hover:bg-cream-300 text-espresso-900 font-bold text-sm">
+          إلغاء
+        </button>
+        <button id="confirm-ok-btn" class="pressable px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm shadow">
+          تأكيد
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- نافذة إعدادات وإدخال رمز المرور (PIN) -->
+  <div id="pin-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-espresso-950/75 p-4">
+    <div class="card-surface w-full max-w-sm rounded-3xl p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center text-xl font-bold">🔐</div>
+          <div>
+            <h3 id="pin-modal-title" class="text-lg font-extrabold text-espresso-900">حماية برمز مرور (PIN)</h3>
+            <p id="pin-modal-subtitle" class="text-xs text-espresso-600">أدخل الرمز للمتابعة</p>
+          </div>
+        </div>
+        <button type="button" onclick="closePinModal()" class="text-espresso-500 hover:text-espresso-900 font-bold text-sm px-2 py-1">✕</button>
+      </div>
+
+      <form id="pin-modal-form" onsubmit="handlePinModalSubmit(event)" class="space-y-3">
+        <div id="pin-current-wrap" class="hidden">
+          <label class="block text-xs font-bold text-espresso-700 mb-1">رمز المرور الحالي</label>
+          <input id="pin-current-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="••••" class="w-full px-4 py-2.5 rounded-xl bg-cream-50 border border-cream-300 text-center text-lg font-extrabold tracking-widest focus:outline-none focus:border-latte-500" />
+        </div>
+
+        <div id="pin-new-wrap">
+          <label id="pin-new-label" class="block text-xs font-bold text-espresso-700 mb-1">رمز المرور (4 إلى 8 أرقام)</label>
+          <input id="pin-new-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="••••" class="w-full px-4 py-2.5 rounded-xl bg-cream-50 border border-cream-300 text-center text-lg font-extrabold tracking-widest focus:outline-none focus:border-latte-500" />
+        </div>
+
+        <div id="pin-confirm-wrap" class="hidden">
+          <label class="block text-xs font-bold text-espresso-700 mb-1">تأكيد رمز المرور الجديد</label>
+          <input id="pin-confirm-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="••••" class="w-full px-4 py-2.5 rounded-xl bg-cream-50 border border-cream-300 text-center text-lg font-extrabold tracking-widest focus:outline-none focus:border-latte-500" />
+        </div>
+
+        <p id="pin-modal-error" class="hidden text-xs font-bold text-red-600 text-center"></p>
+
+        <div class="flex flex-col gap-2 pt-1">
+          <button id="pin-submit-btn" type="submit" class="pressable w-full py-2.5 px-4 rounded-xl bg-espresso-800 hover:bg-espresso-900 text-cream-50 font-extrabold text-sm shadow">
+            تأكيد
+          </button>
+          <button id="pin-disable-btn" type="button" onclick="handleDisablePin()" class="hidden pressable w-full py-2 px-4 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs">
+            تعطيل قفل رمز المرور
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- المحتوى الرئيسي للتطبيق -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5 sm:py-7 space-y-6">
+
+    <!-- القسم 1: لوحة التحكم -->
+    <section id="tab-dashboard" class="tab-content space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-2xl font-extrabold text-espresso-900">لوحة التحكم والملخص المالي</h2>
+          <p class="text-sm text-espresso-600">نظرة شاملة وفورية على مبيعات الكاش، المشتريات، صافي النقد، وديون المحلات المجاورة.</p>
+        </div>
+
+        <!-- أدوات النسخ الاحتياطي والطباعة والحماية -->
+        <div class="flex flex-wrap items-center gap-2 no-print">
+          <button onclick="openPinSettingsModal()" class="pressable px-3.5 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs sm:text-sm font-bold flex items-center gap-1.5 border border-amber-300">
+            <span>🔐</span>
+            <span id="dashboard-pin-btn-text">قفل PIN</span>
+          </button>
+          <button onclick="window.print()" class="pressable px-3.5 py-2 rounded-xl bg-cream-200 hover:bg-cream-300 text-espresso-900 text-xs sm:text-sm font-bold flex items-center gap-1.5 border border-cream-300">
+            <span>🖨️</span>
+            <span>طباعة الملخص</span>
+          </button>
+          <button onclick="exportBackupJSON()" class="pressable px-3.5 py-2 rounded-xl bg-espresso-800 hover:bg-espresso-900 text-cream-50 text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm">
+            <span>💾</span>
+            <span>تصدير نسخة JSON</span>
+          </button>
+          <button onclick="exportSummaryCSV()" class="pressable px-3.5 py-2 rounded-xl bg-cream-200 hover:bg-cream-300 text-espresso-900 text-xs sm:text-sm font-bold flex items-center gap-1.5 border border-cream-300">
+            <span>📄</span>
+            <span>تصدير CSV</span>
+          </button>
+          <label class="pressable cursor-pointer px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-950 text-xs sm:text-sm font-bold flex items-center gap-1.5 border border-amber-300">
+            <span>📂</span>
+            <span>استيراد نسخة</span>
+            <input id="restore-file-input" type="file" accept=".json,application/json" class="hidden" onchange="importBackupJSON(event)" />
+          </label>
+          <button onclick="requestResetData()" class="pressable px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs sm:text-sm font-bold flex items-center gap-1.5 border border-red-200">
+            <span>🔄</span>
+            <span>إعادة ضبط</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- شريط حالة مباشر للنسخ الاحتياطي والعمليات -->
+      <div id="system-status-banner" class="hidden rounded-2xl px-4 py-3 text-sm font-bold border"></div>
+
+      <!-- بطاقات المؤشرات الرئيسية -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="card-surface rounded-3xl p-4 sm:p-5 border-r-4 border-r-emerald-600">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-espresso-600">مبيعات الكاش اليومية</span>
+            <span class="w-9 h-9 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg">☀️</span>
+          </div>
+          <div id="stat-today-cash" class="text-2xl font-extrabold text-espresso-900">0.00</div>
+          <p class="text-[11px] text-espresso-600/80 mt-1">مبيعات اليوم النقدية فقط</p>
+        </div>
+
+        <div class="card-surface rounded-3xl p-4 sm:p-5 border-r-4 border-r-latte-500">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-espresso-600">إجمالي المبيعات الكاش</span>
+            <span class="w-9 h-9 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center text-lg">💵</span>
+          </div>
+          <div id="stat-total-cash" class="text-2xl font-extrabold text-espresso-900">0.00</div>
+          <p class="text-[11px] text-espresso-600/80 mt-1">كل فواتير الكاش المسجلة</p>
+        </div>
+
+        <div class="card-surface rounded-3xl p-4 sm:p-5 border-r-4 border-r-espresso-700">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-espresso-600">البضاعة الواردة (المشتريات)</span>
+            <span class="w-9 h-9 rounded-2xl bg-cream-200 text-espresso-800 flex items-center justify-center text-lg">📦</span>
+          </div>
+          <div id="stat-total-purchases" class="text-2xl font-extrabold text-espresso-900">0.00</div>
+          <p class="text-[11px] text-espresso-600/80 mt-1">إجمالي فواتير التوريد</p>
+        </div>
+
+        <div class="card-surface rounded-3xl p-4 sm:p-5 border-r-4 border-r-teal-600">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-espresso-600">صافي الربح النقدي</span>
+            <span class="w-9 h-9 rounded-2xl bg-teal-100 text-teal-800 flex items-center justify-center text-lg">📈</span>
+          </div>
+          <div id="stat-net-cash" class="text-2xl font-extrabold text-espresso-900">0.00</div>
+          <p class="text-[11px] text-espresso-600/80 mt-1">الكاش + الديون المسددة − المشتريات والمصاريف</p>
+        </div>
+
+        <div class="card-surface rounded-3xl p-4 sm:p-5 border-r-4 border-r-red-600 sm:col-span-2 lg:col-span-1">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-espresso-600">ديون المحلات المتبقية</span>
+            <span class="w-9 h-9 rounded-2xl bg-red-100 text-red-700 flex items-center justify-center text-lg">📒</span>
+          </div>
+          <div id="stat-total-debts" class="text-2xl font-extrabold text-red-700">0.00</div>
+          <p class="text-[11px] text-espresso-600/80 mt-1">مستحقات لنا عند أصحاب المحلات</p>
+        </div>
+      </div>
+
+      <!-- ملخص أرصدة المحلات + تفاصيل حركة الصندوق -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 card-surface rounded-3xl p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-extrabold text-espresso-900">أرصدة أصحاب المحلات المجاورة</h3>
+              <p class="text-xs text-espresso-600">اضغط على أي محل للانتقال إلى كشف حسابه وتسجيل دفعة أو نسخ كشفه</p>
+            </div>
+            <button onclick="switchTab('debts')" class="pressable no-print text-xs font-bold px-3 py-2 rounded-xl bg-cream-200 hover:bg-cream-300 text-espresso-900">
+              إدارة المحلات ←
+            </button>
+          </div>
+          <div id="dashboard-shops-list" class="divide-y divide-cream-200"></div>
+        </div>
+
+        <div class="card-surface rounded-3xl p-5 space-y-4 flex flex-col justify-between">
+          <div class="space-y-4">
+            <h3 class="text-lg font-extrabold text-espresso-900">تفاصيل حركة الصندوق</h3>
+            <div class="space-y-2.5 text-sm">
+              <div class="flex items-center justify-between p-3 rounded-2xl bg-cream-100">
+                <span class="text-espresso-700 font-semibold">مبيعات الكاش الإجمالية</span>
+                <span id="flow-cash-sales" class="font-extrabold text-emerald-700">0.00</span>
+              </div>
+              <div class="flex items-center justify-between p-3 rounded-2xl bg-cream-100">
+                <span class="text-espresso-700 font-semibold">دفعات مسددة من المحلات</span>
+                <span id="flow-debt-payments" class="font-extrabold text-teal-700">0.00</span>
+              </div>
+              <div class="flex items-center justify-between p-3 rounded-2xl bg-cream-100">
+                <span class="text-espresso-700 font-semibold">فواتير البضاعة الواردة</span>
+                <span id="flow-purchases" class="font-extrabold text-espresso-900">0.00</span>
+              </div>
+              <div class="flex items-center justify-between p-3 rounded-2xl bg-cream-100">
+                <span class="text-espresso-700 font-semibold">المصروفات النثرية اليومية</span>
+                <span id="flow-expenses" class="font-extrabold text-red-700">0.00</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-cream-200 no-print">
+            <button onclick="switchTab('cashier')" class="pressable w-full py-3 rounded-2xl bg-gradient-to-l from-espresso-800 to-espresso-900 hover:from-espresso-700 hover:to-espresso-800 text-cream-50 font-extrabold text-sm shadow">
+              ☕ الذهاب إلى شاشة الكاشير الآن
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- القسم 2: الكاشير والمبيعات السريعة -->
+    <section id="tab-cashier" class="tab-content hidden space-y-6">
+      <div>
+        <h2 class="text-2xl font-extrabold text-espresso-900">الكاشير والمبيعات السريعة</h2>
+        <p class="text-sm text-espresso-600">اضغط على المشروبات لإضافتها للسلة، ثم اختر إتمام الطلب كاش أو تسجيله على دين محل.</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div class="lg:col-span-7 card-surface rounded-3xl p-4 sm:p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-lg font-extrabold text-espresso-900">قائمة المشروبات والأصناف</h3>
+            <button onclick="toggleAddProductForm()" class="pressable px-3.5 py-2 rounded-xl bg-latte-500 hover:bg-latte-600 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm">
+              <span>➕</span>
+              <span>إضافة صنف جديد</span>
+            </button>
+          </div>
+
+          <form id="add-product-form" onsubmit="handleAddProduct(event)" class="hidden bg-cream-100 border border-cream-300 rounded-2xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-extrabold text-espresso-900">إضافة صنف جديد للقائمة</span>
+              <button type="button" onclick="toggleAddProductForm()" class="text-xs text-espresso-600 hover:text-espresso-900 font-bold">إغلاق ✕</button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-espresso-700 mb-1">اسم الصنف</label>
+                <input id="new-prod-name" type="text" required placeholder="مثال: قهوة فرنسية" class="w-full px-3 py-2.5 rounded-xl bg-white border border-cream-300 text-sm focus:outline-none focus:border-latte-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-espresso-700 mb-1">السعر</label>
+                <input id="new-prod-price" type="number" step="0.05" min="0.05" required placeholder="1.50" class="w-full px-3 py-2.5 rounded-xl bg-white border border-cream-300 text-sm focus:outline-none focus:border-latte-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-espresso-700 mb-1">أيقونة (إيموجي)</label>
+                <input id="new-prod-icon" type="text" maxlength="4" value="☕" class="w-full px-3 py-2.5 rounded-xl bg-white border border-cream-300 text-sm focus:outline-none focus:border-latte-500" />
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button type="submit" class="pressable px-5 py-2 rounded-xl bg-espresso-800 hover:bg-espresso-900 text-cream-50 text-sm font-bold">
+                حفظ الصنف
+              </button>
+            </div>
+          </form>
+
+          <div id="products-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+        </div>
+
+        <div class="lg:col-span-5 card-surface rounded-3xl p-4 sm:p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-cream-200 pb-3">
+            <h3 class="text-lg font-extrabold text-espresso-900 flex items-center gap-2">
+              <span>🛒</span>
+              <span>الطلب الحالي</span>
+            </h3>
+            <button onclick="clearCart()" class="text-xs font-bold text-red-600 hover:text-red-700 px-2.5 py-1 rounded-lg hover:bg-red-50">
+              تفريغ السلة
+            </button>
+          </div>
+
+          <div id="cart-items" class="space-y-2.5 max-h-72 overflow-y-auto pr-0.5"></div>
+
+          <div class="bg-cream-100 rounded-2xl p-4 flex items-center justify-between border border-cream-200">
+            <span class="text-sm font-bold text-espresso-700">الإجمالي المطلوب</span>
+            <span id="cart-total" class="text-2xl font-extrabold text-espresso-900">0.00</span>
+          </div>
+
+          <div class="space-y-3 pt-1">
+            <button onclick="checkoutCash()" class="pressable w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-base shadow-md flex items-center justify-center gap-2">
+              <span>💵</span>
+              <span>بيع كاش (نقدي)</span>
+            </button>
+
+            <div class="bg-amber-50/90 border border-amber-200 rounded-2xl p-3.5 space-y-2.5">
+              <label class="block text-xs font-extrabold text-amber-950">تسجيل الطلب على دين محل مجاور (آجل):</label>
+              <div class="flex flex-col sm:flex-row gap-2">
+                <select id="debt-shop-select" class="flex-1 px-3 py-2.5 rounded-xl bg-white border border-amber-300 text-sm font-bold text-espresso-900 focus:outline-none focus:border-latte-500"></select>
+                <button type="button" onclick="quickAddShopFromCashier()" class="pressable px-3 py-2.5 rounded-xl bg-cream-200 hover:bg-cream-300 text-espresso-900 text-xs font-extrabold whitespace-nowrap">
+                  + محل جديد
+                </button>
+              </div>
+              <button onclick="checkoutDebt()" class="pressable w-full py-3 px-4 rounded-2xl bg-latte-600 hover:bg-espresso-800 text-white font-extrabold text-sm shadow flex items-center justify-center gap-2">
+                <span>📒</span>
+                <span>تسجيل على دين محل</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- سجل حركات المبيعات اليومية والمصروفات النثرية -->
+      <div class="card-surface rounded-3xl p-4 sm:p-5 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 class="text-lg font-extrabold text-espresso-900">سجل حركات اليوم (مبيعات الكاش والمصروفات)</h3>
+            <p class="text-xs text-espresso-600">يمكنك التبديل بين حركات اليوم فقط أو كامل السجل، وتسجيل مصروف نثري.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="movements-day-filter" onchange="renderMovementsTable()" class="px-3 py-2 rounded-xl bg-cream-50 border border-cream-300 text-xs sm:text-sm font-bold text-espresso-900">
+              <option value="TODAY">حركات اليوم فقط</option>
+              <option value="ALL">كل الأيام</option>
+            </select>
+            <button onclick="toggleExpenseForm()" class="pressable px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs sm:text-sm font-bold flex items-center gap-1.5">
+              <span>➖</span>
+              <span>تسجيل مصروف نثري</span>
+            </button>
+          </div>
+        </div>
+
+        <form id="expense-form" onsubmit="handleAddExpense(event)" class="hidden bg-red-50/60 border border-red-200 rounded-2xl p-4 space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-espresso-800 mb-1">بيان المصروف</label>
+              <input id="expense-title" type="text" required placeholder="مثال: أكياس نفايات أو مواصلات" class="w-full px-3 py-2.5 rounded-xl bg-white border border-red-200 text-sm focus:outline-none focus:border-red-400" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-espresso-800 mb-1">المبلغ</label>
+              <input id="expense-amount" type="number" step="0.05" min="0.05" required placeholder="2.00" class="w-full px-3 py-2.5 rounded-xl bg-white border border-red-200 text-sm focus:outline-none focus:border-red-400" />
+            </div>
+            <div class="flex items-end gap-2">
+              <button type="submit" class="pressable flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold">
+                حفظ المصروف
+              </button>
+              <button type="button" onclick="toggleExpenseForm()" class="pressable py-2.5 px-3 rounded-xl bg-white border border-cream-300 text-espresso-800 text-xs font-bold">
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-right border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-cream-200 text-espresso-600 text-xs bg-cream-100/70">
+                <th class="py-3 px-3 rounded-r-xl font-bold">الوقت</th>
+                <th class="py-3 px-3 font-bold">النوع</th>
+                <th class="py-3 px-3 font-bold">التفاصيل</th>
+                <th class="py-3 px-3 font-bold">المبلغ</th>
+                <th class="py-3 px-3 rounded-l-xl font-bold text-center">إجراء</th>
+              </tr>
+            </thead>
+            <tbody id="daily-movements-tbody" class="divide-y divide-cream-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- القسم 3: ديون أصحاب المحلات -->
+    <section id="tab-debts" class="tab-content hidden space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h2 class="text-2xl font-extrabold text-espresso-900">دفتر ديون أصحاب المحلات المجاورة</h2>
+          <p class="text-sm text-espresso-600">متابعة الديون الآجلة والدفعات المسددة لكل محل، مع إمكانية نسخ كشف الحساب لإرساله عبر واتساب.</p>
+        </div>
+        <button id="lock-debts-now-btn" onclick="lockDebtsSession()" class="hidden pressable self-start sm:self-auto px-3.5 py-2 rounded-xl bg-espresso-800 hover:bg-espresso-900 text-cream-50 text-xs font-bold flex items-center gap-1.5">
+          <span>🔒</span>
+          <span>قفل قسم الديون الآن</span>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div class="lg:col-span-5 card-surface rounded-3xl p-4 sm:p-5 space-y-4">
+          <h3 class="text-lg font-extrabold text-espresso-900">المحلات المجاورة</h3>
+
+          <form onsubmit="handleAddShop(event)" class="flex gap-2">
+            <input id="new-shop-name" type="text" required placeholder="اسم المحل (مثال: محل أبو أحمد)" class="flex-1 px-3.5 py-2.5 rounded-xl bg-cream-50 border border-cream-300 text-sm focus:outline-none focus:bg-white focus:border-latte-500" />
+            <button type="submit" class="pressable px-4 py-2.5 rounded-xl bg-espresso-800 hover:bg-espresso-900 text-cream-50 text-sm font-bold whitespace-nowrap">
+              + إضافة
+            </button>
+          </form>
+
+          <div id="shops-ledger-list" class="space-y-2.5 max-h-[34rem] overflow-y-auto pr-0.5"></div>
+        </div>
+
+        <div class="lg:col-span-7 card-surface rounded-3xl p-4 sm:p-6 space-y-5">
+          <div id="selected-shop-panel" class="space-y-5"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- القسم 4: البضاعة الواردة والمشتريات -->
+    <section id="tab-purchases" class="tab-content hidden space-y-6">
+      <div>
+        <h2 class="text-2xl font-extrabold text-espresso-900">البضاعة الواردة والمشتريات</h2>
+        <p class="text-sm text-espresso-600">تسجيل فواتير شراء البن، المستلزمات، الغاز والمواد الأساسية وحساب التكاليف تلقائياً.</p>
+      </div>
+
+      <form onsubmit="handleAddPurchase(event)" class="card-surface rounded-3xl p-4 sm:p-6 space-y-4">
+        <h3 class="text-lg font-extrabold text-espresso-900 flex items-center gap-2">
+          <span>📥</span>
+          <span>تسجيل فاتورة بضاعة واردة جديدة</span>
+        </h3>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5">
+          <div class="lg:col-span-2">
+            <label class="block text-xs font-bold text-espresso-700 mb-1">اسم الصنف *</label>
+            <input id="pur-item" type="text" required placeholder="مثال: بن عربي مطحون 5 كغم" class="w-full px-3.5 py-2.5 rounded-xl bg-cream-50 border border-cream-300 text-sm focus:outline-none focus:bg-white focus:border-latte-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-espresso-700 mb-1">التصنيف</label>
+            <select id="pur-category" class="w-full px-3 py-2.5 rounded-xl bg-cream-50 border border-cream-300 text-sm font-semibold focus:outline-none focus:bg-white focus:border-latte-500">
+              <option value="قهوة وبن">قهوة وبن</option>
+              <option value="منكهات">منكهات</option>
+              <option value="مستلزمات">مستلزمات</option>
+              <option value="مواد أساسية">مواد أساسية</option>
+              <option value="غاز وكهرباء">غاز وكهرباء</option>
+              <option value="أخرى">أخرى</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-espresso-700 mb-1">الكمية *</label>
+            <input id="pur-qty" type="number" step="0.01" min="0.01" value="1" required oninput="updatePurchasePreview()" class="w-full px-3 py-2.5 rounded-xl bg-cream-50 border border-cream-300 text-sm focus:outline-none focus:bg-white focus:border-latte-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-espresso-700 mb-1">سعر الوحدة *</label>
+            <input id="pur-unit-price" type="number" step="0.01" min="0" required placeholder="0.00" oninput="updatePurchasePreview()" class="w-full px-3 py-2.5 rounded-xl bg-cream-50 border border-cream-300 text-sm focus:outline-none focus:bg-white focus:border-latte-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-espresso-700 mb-1">الإجمالي المحسوب</label>
+            <div id="pur-total-preview" class="w-full px-3 py-2.5 rounded-xl bg-cream-200/80 border border-cream-300 text-sm font-extrabold text-espresso-900">
+              0.00
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 items-end">
+          <div>
+            <label class="block text-xs font-bold text-espresso-700 mb-1">اسم المورد (اختياري)</label>
+            <input id="pur-supplier" type="text" placeholder="مثال: محمصة الأصالة" class="w-full px-3.5 py-2.5 rounded-xl bg-cream-50 border border-cream-300 text-sm focus:outline-none focus:bg-white focus:border-latte-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-espresso-700 mb-1">ملاحظات (اختياري)</label>
+            <input id="pur-notes" type="text" placeholder="مثال: دفعة نقدية كاملة" class="w-full px-3.5 py-2.5 rounded-xl bg-cream-50 border border-cream-300 text-sm focus:outline-none focus:bg-white focus:border-latte-500" />
+          </div>
+          <div>
+            <button type="submit" class="pressable w-full py-2.5 px-5 rounded-xl bg-espresso-800 hover:bg-espresso-900 text-cream-50 font-extrabold text-sm shadow">
+              ✅ حفظ فاتورة البضاعة الواردة
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <div class="card-surface rounded-3xl p-4 sm:p-6 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h3 class="text-lg font-extrabold text-espresso-900">سجل فواتير البضاعة الواردة</h3>
+
+          <div class="flex flex-col sm:flex-row gap-2.5">
+            <input id="pur-search" type="text" oninput="renderPurchases()" placeholder="ابحث بالصنف أو المورد..." class="px-3.5 py-2 rounded-xl bg-cream-50 border border-cream-300 text-sm focus:outline-none focus:bg-white focus:border-latte-500" />
+            <select id="pur-filter-category" onchange="renderPurchases()" class="px-3 py-2 rounded-xl bg-cream-50 border border-cream-300 text-sm font-bold focus:outline-none focus:bg-white focus:border-latte-500">
+              <option value="ALL">كل التصنيفات</option>
+              <option value="قهوة وبن">قهوة وبن</option>
+              <option value="منكهات">منكهات</option>
+              <option value="مستلزمات">مستلزمات</option>
+              <option value="مواد أساسية">مواد أساسية</option>
+              <option value="غاز وكهرباء">غاز وكهرباء</option>
+              <option value="أخرى">أخرى</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-right border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-cream-200 text-espresso-600 text-xs bg-cream-100/70">
+                <th class="py-3 px-3 rounded-r-xl font-bold">التاريخ</th>
+                <th class="py-3 px-3 font-bold">الصنف</th>
+                <th class="py-3 px-3 font-bold">التصنيف</th>
+                <th class="py-3 px-3 font-bold">الكمية</th>
+                <th class="py-3 px-3 font-bold">سعر الوحدة</th>
+                <th class="py-3 px-3 font-bold">الإجمالي</th>
+                <th class="py-3 px-3 font-bold">المورد والملاحظات</th>
+                <th class="py-3 px-3 rounded-l-xl font-bold text-center">حذف</th>
+              </tr>
+            </thead>
+            <tbody id="purchases-tbody" class="divide-y divide-cream-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="bg-cream-100 border-t border-cream-200 py-4 px-4 text-center text-xs text-espresso-600">
+    نظام إدارة محل القهوة — جميع البيانات محفوظة تلقائياً على متصفح جهازك (LocalStorage).
+  </footer>
+
+  <script>
+    const STORAGE_KEY = 'qahwaty_pos_system_v1';
+
+    function getTodayISO() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function formatDateTimeAR(isoString) {
+      try {
+        const dt = new Date(isoString);
+        return dt.toLocaleString('ar-JO', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch (e) {
+        return isoString;
+      }
+    }
+
+    function formatMoney(num) {
+      const val = Number(num) || 0;
+      return val.toFixed(2);
+    }
+
+    function generateId(prefix = 'id') {
+      return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    }
+
+    function createSeedData() {
+      const today = getTodayISO();
+      const nowISO = new Date().toISOString();
+
+      return {
+        activeTab: 'dashboard',
+        selectedShopId: 'shop_abu_ahmad',
+        security: {
+          pinEnabled: false,
+          pinCode: ''
+        },
+        products: [
+          { id: 'p1', name: 'قهوة وسط', price: 1.00, icon: '☕' },
+          { id: 'p2', name: 'قهوة سادة', price: 1.00, icon: '🤎' },
+          { id: 'p3', name: 'قهوة تركي', price: 1.25, icon: '🫖' },
+          { id: 'p4', name: 'شاي', price: 0.75, icon: '🍵' },
+          { id: 'p5', name: 'نسكافيه', price: 1.50, icon: '🥛' },
+          { id: 'p6', name: 'كابتشينو', price: 2.00, icon: '🫧' },
+          { id: 'p7', name: 'ماء', price: 0.35, icon: '💧' },
+          { id: 'p8', name: 'ثلج', price: 0.50, icon: '🧊' },
+        ],
+        cart: [
+          { productId: 'p1', name: 'قهوة وسط', price: 1.00, icon: '☕', qty: 2 }
+        ],
+        movements: [
+          {
+            id: 'm1',
+            date: today,
+            timestamp: nowISO,
+            type: 'CASH_SALE',
+            summary: '2 قهوة وسط، 1 شاي',
+            amount: 2.75
+          },
+          {
+            id: 'm2',
+            date: today,
+            timestamp: nowISO,
+            type: 'EXPENSE',
+            summary: 'كيس ثلج إضافي',
+            amount: 0.50
+          }
+        ],
+        shops: [
+          {
+            id: 'shop_abu_ahmad',
+            name: 'محل أبو أحمد',
+            entries: [
+              { id: 'e1', timestamp: nowISO, kind: 'DEBT', itemsText: '3 قهوة وسط، 2 شاي', amount: 4.50 },
+              { id: 'e2', timestamp: nowISO, kind: 'PAYMENT', itemsText: 'تسديد دفعة نقدية جزئية', amount: 2.00 }
+            ]
+          },
+          {
+            id: 'shop_noor',
+            name: 'سوبرماركت النور',
+            entries: [
+              { id: 'e3', timestamp: nowISO, kind: 'DEBT', itemsText: '4 قهوة تركي، 2 نسكافيه', amount: 8.00 }
+            ]
+          },
+          {
+            id: 'shop_salam',
+            name: 'مكتبة السلام',
+            entries: [
+              { id: 'e4', timestamp: nowISO, kind: 'DEBT', itemsText: '2 كابتشينو، 1 ماء', amount: 4.35 },
+              { id: 'e5', timestamp: nowISO, kind: 'PAYMENT', itemsText: 'تسديد كامل الرصيد السابق', amount: 4.35 }
+            ]
+          }
+        ],
+        purchases: [
+          {
+            id: 'pur1',
+            date: today,
+            item: 'بن عربي مطحون (2 كغم)',
+            category: 'قهوة وبن',
+            qty: 2,
+            unitPrice: 12.00,
+            total: 24.00,
+            supplier: 'محمصة الأصالة',
+            notes: 'طازج اليوم'
+          },
+          {
+            id: 'pur2',
+            date: today,
+            item: 'أكواب ورقية (ربطة 100 كوب)',
+            category: 'مستلزمات',
+            qty: 3,
+            unitPrice: 2.50,
+            total: 7.50,
+            supplier: 'مستلزمات البركة',
+            notes: ''
+          }
+        ]
+      };
+    }
+
+    let appState = null;
+    let isProtectedUnlocked = false;
+    let pendingProtectedAction = null;
+    let pinModalMode = 'UNLOCK'; // 'UNLOCK' | 'SETUP' | 'CHANGE'
+
+    function isPinActive() {
+      return Boolean(appState && appState.security && appState.security.pinEnabled && appState.security.pinCode);
+    }
+
+    function updatePinUI() {
+      const active = isPinActive();
+      const iconEl = document.getElementById('header-pin-icon');
+      const labelEl = document.getElementById('header-pin-label');
+      const dashBtnText = document.getElementById('dashboard-pin-btn-text');
+      const lockNowBtn = document.getElementById('lock-debts-now-btn');
+
+      if (iconEl) iconEl.textContent = active ? (isProtectedUnlocked ? '🔓' : '🔒') : '🛡️';
+      if (labelEl) labelEl.textContent = active ? (isProtectedUnlocked ? 'مفتوح مؤقتاً' : 'مقفل بـ PIN') : 'غير مفعّل';
+      if (dashBtnText) dashBtnText.textContent = active ? 'إعدادات PIN' : 'تفعيل قفل PIN';
+      if (lockNowBtn) {
+        lockNowBtn.classList.toggle('hidden', !(active && isProtectedUnlocked));
+      }
+    }
+
+    function runWithPinProtection(callback) {
+      if (!isPinActive() || isProtectedUnlocked) {
+        callback();
+        return;
+      }
+      pendingProtectedAction = callback;
+      openPinUnlockModal();
+    }
+
+    function openPinUnlockModal() {
+      pinModalMode = 'UNLOCK';
+      document.getElementById('pin-modal-title').textContent = 'قسم محمي برمز مرور';
+      document.getElementById('pin-modal-subtitle').textContent = 'أدخل رمز المرور (PIN) لفتح الحسابات والديون';
+      document.getElementById('pin-current-wrap').classList.add('hidden');
+      document.getElementById('pin-new-wrap').classList.remove('hidden');
+      document.getElementById('pin-new-label').textContent = 'رمز المرور (PIN)';
+      document.getElementById('pin-confirm-wrap').classList.add('hidden');
+      document.getElementById('pin-submit-btn').textContent = 'فتح القفل';
+      document.getElementById('pin-disable-btn').classList.add('hidden');
+
+      const errEl = document.getElementById('pin-modal-error');
+      errEl.classList.add('hidden');
+      errEl.textContent = '';
+
+      document.getElementById('pin-current-input').value = '';
+      document.getElementById('pin-new-input').value = '';
+      document.getElementById('pin-confirm-input').value = '';
+
+      const modal = document.getElementById('pin-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      setTimeout(() => document.getElementById('pin-new-input').focus(), 60);
+    }
+
+    function openPinSettingsModal() {
+      const active = isPinActive();
+      pinModalMode = active ? 'CHANGE' : 'SETUP';
+
+      document.getElementById('pin-modal-title').textContent = active ? 'إعدادات رمز المرور (PIN)' : 'تفعيل قفل برمز مرور (PIN)';
+      document.getElementById('pin-modal-subtitle').textContent = active
+        ? 'غيّر رمز المرور أو عطّل الحماية لقسم الحسابات والديون'
+        : 'يحمي هذا الرمز لوحة التحكم وقسم ديون المحلات من الفتح غير المقصود';
+
+      document.getElementById('pin-current-wrap').classList.toggle('hidden', !active);
+      document.getElementById('pin-new-wrap').classList.remove('hidden');
+      document.getElementById('pin-new-label').textContent = active ? 'رمز المرور الجديد (4 إلى 8 أرقام)' : 'رمز المرور الجديد (4 إلى 8 أرقام)';
+      document.getElementById('pin-confirm-wrap').classList.remove('hidden');
+      document.getElementById('pin-submit-btn').textContent = active ? 'تحديث رمز المرور' : 'تفعيل القفل الآن';
+      document.getElementById('pin-disable-btn').classList.toggle('hidden', !active);
+
+      const errEl = document.getElementById('pin-modal-error');
+      errEl.classList.add('hidden');
+      errEl.textContent = '';
+
+      document.getElementById('pin-current-input').value = '';
+      document.getElementById('pin-new-input').value = '';
+      document.getElementById('pin-confirm-input').value = '';
+
+      const modal = document.getElementById('pin-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      setTimeout(() => {
+        const target = active ? document.getElementById('pin-current-input') : document.getElementById('pin-new-input');
+        target.focus();
+      }, 60);
+    }
+
+    function closePinModal() {
+      const modal = document.getElementById('pin-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      pendingProtectedAction = null;
+    }
+
+    function setPinModalError(msg) {
+      const errEl = document.getElementById('pin-modal-error');
+      errEl.textContent = msg;
+      errEl.classList.remove('hidden');
+    }
+
+    function handlePinModalSubmit(e) {
+      e.preventDefault();
+      const currentVal = document.getElementById('pin-current-input').value.trim();
+      const newVal = document.getElementById('pin-new-input').value.trim();
+      const confirmVal = document.getElementById('pin-confirm-input').value.trim();
+
+      if (pinModalMode === 'UNLOCK') {
+        if (newVal !== appState.security.pinCode) {
+          setPinModalError('رمز المرور غير صحيح. حاول مرة أخرى.');
+          document.getElementById('pin-new-input').select();
+          return;
+        }
+        isProtectedUnlocked = true;
+        const action = pendingProtectedAction;
+        closePinModal();
+        updatePinUI();
+        showToast('تم فتح قفل الحسابات والديون.', 'success');
+        if (typeof action === 'function') action();
+        return;
+      }
+
+      if (pinModalMode === 'CHANGE') {
+        if (currentVal !== appState.security.pinCode) {
+          setPinModalError('رمز المرور الحالي غير صحيح.');
+          return;
+        }
+      }
+
+      if (!/^\d{4,8}$/.test(newVal)) {
+        setPinModalError('يجب أن يتكون الرمز من 4 إلى 8 أرقام فقط.');
+        return;
+      }
+
+      if (newVal !== confirmVal) {
+        setPinModalError('تأكيد رمز المرور غير متطابق.');
+        return;
+      }
+
+      appState.security = {
+        pinEnabled: true,
+        pinCode: newVal
+      };
+      isProtectedUnlocked = true;
+      saveState();
+      closePinModal();
+      updatePinUI();
+      showToast('تم حفظ وتفعيل قفل رمز المرور (PIN) بنجاح.', 'success');
+      setSystemBanner('تم تفعيل الحماية برمز المرور (PIN) لقسم الحسابات والديون.', 'success');
+    }
+
+    function handleDisablePin() {
+      const currentVal = document.getElementById('pin-current-input').value.trim();
+      if (currentVal !== appState.security.pinCode) {
+        setPinModalError('أدخل رمز المرور الحالي أولاً لتعطيل القفل.');
+        document.getElementById('pin-current-input').focus();
+        return;
+      }
+
+      appState.security = {
+        pinEnabled: false,
+        pinCode: ''
+      };
+      isProtectedUnlocked = false;
+      saveState();
+      closePinModal();
+      updatePinUI();
+      showToast('تم تعطيل قفل رمز المرور.', 'info');
+      setSystemBanner('تم تعطيل قفل رمز المرور (PIN).', 'warn');
+    }
+
+    function lockDebtsSession() {
+      isProtectedUnlocked = false;
+      updatePinUI();
+      showToast('تم قفل قسم الحسابات والديون.', 'info');
+      switchTab('cashier');
+    }
+
+    function setSystemBanner(message, type = 'info') {
+      const banner = document.getElementById('system-status-banner');
+      if (!banner) return;
+      const styles = {
+        success: 'bg-emerald-50 text-emerald-900 border-emerald-200',
+        warn: 'bg-amber-50 text-amber-950 border-amber-200',
+        error: 'bg-red-50 text-red-900 border-red-200',
+        info: 'bg-cream-100 text-espresso-900 border-cream-300'
+      };
+      banner.className = `rounded-2xl px-4 py-3 text-sm font-bold border ${styles[type] || styles.info}`;
+      banner.textContent = message;
+      banner.classList.remove('hidden');
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          appState = createSeedData();
+          saveState();
+          return;
+        }
+        const parsed = JSON.parse(raw);
+        const seed = createSeedData();
+        appState = {
+          activeTab: parsed.activeTab || 'dashboard',
+          selectedShopId: parsed.selectedShopId || (parsed.shops?.[0]?.id ?? null),
+          security: {
+            pinEnabled: Boolean(parsed.security?.pinEnabled && parsed.security?.pinCode),
+            pinCode: String(parsed.security?.pinCode || '')
+          },
+          products: Array.isArray(parsed.products) ? parsed.products : seed.products,
+          cart: Array.isArray(parsed.cart) ? parsed.cart : [],
+          movements: Array.isArray(parsed.movements) ? parsed.movements : [],
+          shops: Array.isArray(parsed.shops) ? parsed.shops : [],
+          purchases: Array.isArray(parsed.purchases) ? parsed.purchases : []
+        };
+      } catch (err) {
+        console.error('خطأ في قراءة البيانات من المتصفح:', err);
+        appState = createSeedData();
+        showToast('تعذر قراءة البيانات السابقة، تم تحميل البيانات الافتراضية.', 'warn');
+        setSystemBanner('تعذر قراءة البيانات السابقة من المتصفح وتم تحميل البيانات الأولية.', 'warn');
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (err) {
+        console.error('خطأ في حفظ البيانات:', err);
+        showToast('تنبيه: تعذر الحفظ في ذاكرة المتصفح.', 'error');
+        setSystemBanner('تنبيه: تعذر الحفظ تلقائياً في LocalStorage.', 'error');
+      }
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+
+      const styles = {
+        success: 'bg-espresso-900 text-cream-50 border-r-4 border-r-emerald-400',
+        warn: 'bg-amber-950 text-amber-50 border-r-4 border-r-amber-400',
+        error: 'bg-red-950 text-red-50 border-r-4 border-r-red-400',
+        info: 'bg-espresso-800 text-cream-50 border-r-4 border-r-latte-400'
+      };
+
+      toast.className = `pointer-events-auto px-4 py-3 rounded-2xl shadow-xl text-sm font-bold flex items-center justify-between gap-3 transition-all duration-300 ${styles[type] || styles.info}`;
+      toast.innerHTML = `<span>${escapeHTML(message)}</span>`;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+
+    let confirmResolver = null;
+
+    function openConfirmModal(title, message, okText = 'تأكيد') {
+      return new Promise((resolve) => {
+        confirmResolver = resolve;
+        document.getElementById('confirm-title').textContent = title;
+        document.getElementById('confirm-message').textContent = message;
+        document.getElementById('confirm-ok-btn').textContent = okText;
+
+        const modal = document.getElementById('confirm-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      });
+    }
+
+    function closeConfirmModal(result) {
+      const modal = document.getElementById('confirm-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      if (confirmResolver) {
+        confirmResolver(result);
+        confirmResolver = null;
+      }
+    }
+
+    document.getElementById('confirm-cancel-btn').addEventListener('click', () => closeConfirmModal(false));
+    document.getElementById('confirm-ok-btn').addEventListener('click', () => closeConfirmModal(true));
+
+    function escapeHTML(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function applyTabChange(tabName) {
+      appState.activeTab = tabName;
+      saveState();
+
+      document.querySelectorAll('.tab-content').forEach((sec) => {
+        sec.classList.toggle('hidden', sec.id !== `tab-${tabName}`);
+      });
+
+      document.querySelectorAll('.nav-btn').forEach((btn) => {
+        const active = btn.dataset.tab === tabName;
+        btn.classList.toggle('bg-latte-500', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('shadow', active);
+        btn.classList.toggle('text-cream-200', !active);
+        btn.classList.toggle('hover:bg-espresso-700', !active);
+      });
+
+      document.querySelectorAll('.nav-btn-mobile').forEach((btn) => {
+        const active = btn.dataset.tab === tabName;
+        btn.classList.toggle('bg-latte-500', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('text-cream-200/80', !active);
+      });
+
+      updatePinUI();
+      renderAll();
+    }
+
+    function switchTab(tabName) {
+      const validTabs = ['dashboard', 'cashier', 'debts', 'purchases'];
+      if (!validTabs.includes(tabName)) tabName = 'dashboard';
+
+      const protectedTabs = ['dashboard', 'debts'];
+      if (protectedTabs.includes(tabName) && isPinActive() && !isProtectedUnlocked) {
+        runWithPinProtection(() => applyTabChange(tabName));
+        return;
+      }
+
+      applyTabChange(tabName);
+    }
+
+    document.querySelectorAll('.nav-btn, .nav-btn-mobile').forEach((btn) => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    function calculateShopBalance(shop) {
+      if (!shop || !Array.isArray(shop.entries)) return 0;
+      let bal = 0;
+      for (const entry of shop.entries) {
+        const amt = Number(entry.amount) || 0;
+        if (entry.kind === 'DEBT') bal += amt;
+        else if (entry.kind === 'PAYMENT') bal -= amt;
+      }
+      return Math.max(0, Number(bal.toFixed(2)));
+    }
+
+    function getTotalDebtsBalance() {
+      return appState.shops.reduce((sum, shop) => sum + calculateShopBalance(shop), 0);
+    }
+
+    function getTotalDebtPaymentsReceived() {
+      let total = 0;
+      for (const shop of appState.shops) {
+        for (const entry of shop.entries || []) {
+          if (entry.kind === 'PAYMENT') total += Number(entry.amount) || 0;
+        }
+      }
+      return total;
+    }
+
+    function getFinancialSummary() {
+      const today = getTodayISO();
+      let todayCashSales = 0;
+      let totalCashSales = 0;
+      let totalExpenses = 0;
+
+      for (const m of appState.movements) {
+        const amt = Number(m.amount) || 0;
+        if (m.type === 'CASH_SALE') {
+          totalCashSales += amt;
+          if (m.date === today) todayCashSales += amt;
+        } else if (m.type === 'EXPENSE') {
+          totalExpenses += amt;
+        }
+      }
+
+      const totalPurchases = appState.purchases.reduce((sum, p) => sum + (Number(p.total) || 0), 0);
+      const totalDebtPayments = getTotalDebtPaymentsReceived();
+      const totalDebtsRemaining = getTotalDebtsBalance();
+      const netCashProfit = (totalCashSales + totalDebtPayments) - (totalPurchases + totalExpenses);
+
+      return {
+        todayCashSales,
+        totalCashSales,
+        totalExpenses,
+        totalPurchases,
+        totalDebtPayments,
+        totalDebtsRemaining,
+        netCashProfit
+      };
+    }
+
+    function renderDashboard() {
+      const s = getFinancialSummary();
+
+      document.getElementById('header-total-debts').textContent = formatMoney(s.totalDebtsRemaining);
+      document.getElementById('stat-today-cash').textContent = formatMoney(s.todayCashSales);
+      document.getElementById('stat-total-cash').textContent = formatMoney(s.totalCashSales);
+      document.getElementById('stat-total-purchases').textContent = formatMoney(s.totalPurchases);
+
+      const netEl = document.getElementById('stat-net-cash');
+      netEl.textContent = formatMoney(s.netCashProfit);
+      netEl.className = `text-2xl font-extrabold ${s.netCashProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`;
+
+      document.getElementById('stat-total-debts').textContent = formatMoney(s.totalDebtsRemaining);
+
+      document.getElementById('flow-cash-sales').textContent = formatMoney(s.totalCashSales);
+      document.getElementById('flow-debt-payments').textContent = formatMoney(s.totalDebtPayments);
+      document.getElementById('flow-purchases').textContent = formatMoney(s.totalPurchases);
+      document.getElementById('flow-expenses').textContent = formatMoney(s.totalExpenses);
+
+      const shopsListEl = document.getElementById('dashboard-shops-list');
+      if (appState.shops.length === 0) {
+        shopsListEl.innerHTML = `<p class="text-sm text-espresso-600 py-6 text-center">لا توجد محلات مسجلة بعد. أضف محلاً من قسم ديون المحلات.</p>`;
+        return;
+      }
+
+      shopsListEl.innerHTML = appState.shops.map((shop) => {
+        const bal = calculateShopBalance(shop);
+        const isDebtor = bal > 0.001;
+        return `
+          <div onclick="openShopLedger('${escapeHTML(shop.id)}')" class="cursor-pointer py-3 px-2 hover:bg-cream-100/80 rounded-2xl transition flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl ${isDebtor ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'} flex items-center justify-center font-extrabold text-base">
+                🏪
+              </div>
+              <div>
+                <div class="font-extrabold text-espresso-900 text-sm sm:text-base">${escapeHTML(shop.name)}</div>
+                <span class="inline-block mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full ${isDebtor ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}">
+                  ${isDebtor ? 'مدين' : 'مسدد'}
+                </span>
+              </div>
+            </div>
+            <div class="text-left">
+              <div class="text-xs text-espresso-600">الرصيد المتبقي</div>
+              <div class="text-base font-extrabold ${isDebtor ? 'text-red-700' : 'text-emerald-700'}">${formatMoney(bal)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function exportBackupJSON() {
+      try {
+        const payload = {
+          exportedAt: new Date().toISOString(),
+          app: 'qahwaty_pos_system',
+          data: appState
+        };
+        const dataStr = JSON.stringify(payload, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `نسخة_احتياطية_قهوتي_${getTodayISO()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('تم تحميل النسخة الاحتياطية (JSON) بنجاح.', 'success');
+        setSystemBanner(`تم تصدير النسخة الاحتياطية بتاريخ ${getTodayISO()} بنجاح.`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('حدث خطأ أثناء تصدير النسخة الاحتياطية.', 'error');
+        setSystemBanner('حدث خطأ أثناء تصدير النسخة الاحتياطية.', 'error');
+      }
+    }
+
+    function exportSummaryCSV() {
+      try {
+        const s = getFinancialSummary();
+        const rows = [
+          ['البند', 'القيمة'],
+          ['مبيعات الكاش اليومية', formatMoney(s.todayCashSales)],
+          ['إجمالي المبيعات الكاش', formatMoney(s.totalCashSales)],
+          ['إجمالي البضاعة الواردة', formatMoney(s.totalPurchases)],
+          ['المصروفات النثرية', formatMoney(s.totalExpenses)],
+          ['الدفعات المسددة من الديون', formatMoney(s.totalDebtPayments)],
+          ['صافي الربح النقدي', formatMoney(s.netCashProfit)],
+          ['إجمالي الديون المتبقية لنا', formatMoney(s.totalDebtsRemaining)],
+          [],
+          ['اسم المحل', 'الرصيد المتبقي']
+        ];
+
+        for (const shop of appState.shops) {
+          rows.push([shop.name, formatMoney(calculateShopBalance(shop))]);
+        }
+
+        const csvContent = '﻿' + rows.map((r) => r.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('
+');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ملخص_قهوتي_${getTodayISO()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('تم تصدير ملخص الحسابات بصيغة CSV.', 'success');
+        setSystemBanner('تم تصدير ملخص الحسابات بصيغة CSV بنجاح.', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('تعذر تصدير ملف CSV.', 'error');
+      }
+    }
+
+    async function importBackupJSON(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const parsed = JSON.parse(String(e.target.result || ''));
+          const candidate = parsed && parsed.data && typeof parsed.data === 'object' ? parsed.data : parsed;
+
+          if (!candidate || !Array.isArray(candidate.products) || !Array.isArray(candidate.shops)) {
+            showToast('ملف النسخة الاحتياطية غير صالح.', 'error');
+            setSystemBanner('فشل الاستيراد: ملف النسخة الاحتياطية غير مطابق لبيانات النظام.', 'error');
+            return;
+          }
+
+          const ok = await openConfirmModal(
+            'استيراد نسخة احتياطية',
+            'سيتم استبدال البيانات الحالية في المتصفح ببيانات النسخة المختارة. هل تريد المتابعة؟',
+            'استبدال البيانات'
+          );
+
+          if (!ok) {
+            showToast('تم إلغاء الاستيراد.', 'info');
+            setSystemBanner('تم إلغاء عملية الاستيراد؛ البيانات الحالية لم تتغير.', 'warn');
+            return;
+          }
+
+          appState = {
+            activeTab: 'dashboard',
+            selectedShopId: candidate.shops[0]?.id ?? null,
+            security: {
+              pinEnabled: Boolean(candidate.security?.pinEnabled && candidate.security?.pinCode),
+              pinCode: String(candidate.security?.pinCode || '')
+            },
+            products: candidate.products,
+            cart: Array.isArray(candidate.cart) ? candidate.cart : [],
+            movements: Array.isArray(candidate.movements) ? candidate.movements : [],
+            shops: candidate.shops,
+            purchases: Array.isArray(candidate.purchases) ? candidate.purchases : []
+          };
+          saveState();
+          updatePinUI();
+          renderAll();
+          showToast('تمت استعادة النسخة الاحتياطية بنجاح!', 'success');
+          setSystemBanner('تم استيراد النسخة الاحتياطية وتحديث البيانات بنجاح.', 'success');
+        } catch (err) {
+          console.error(err);
+          showToast('تعذر قراءة ملف النسخة الاحتياطية.', 'error');
+          setSystemBanner('تعذر قراءة الملف. تأكد أنه ملف JSON سليم.', 'error');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file, 'utf-8');
+    }
+
+    async function requestResetData() {
+      const ok = await openConfirmModal(
+        'إعادة ضبط البيانات',
+        'هل تريد مسح جميع البيانات الحالية واستعادة البيانات التجريبية الأولية؟ يُنصح بتحميل نسخة احتياطية أولاً.',
+        'إعادة ضبط'
+      );
+      if (!ok) return;
+
+      appState = createSeedData();
+      isProtectedUnlocked = false;
+      saveState();
+      updatePinUI();
+      renderAll();
+      showToast('تمت إعادة ضبط النظام إلى البيانات النموذجية.', 'info');
+      setSystemBanner('تمت إعادة ضبط البيانات إلى الحالة الأولية.', 'warn');
+    }
+
+    function toggleAddProductForm() {
+      const form = document.getElementById('add-product-form');
+      form.classList.toggle('hidden');
+      if (!form.classList.contains('hidden')) {
+        document.getElementById('new-prod-name').focus();
+      }
+    }
+
+    function handleAddProduct(e) {
+      e.preventDefault();
+      const nameInput = document.getElementById('new-prod-name');
+      const priceInput = document.getElementById('new-prod-price');
+      const iconInput = document.getElementById('new-prod-icon');
+
+      const name = nameInput.value.trim();
+      const price = parseFloat(priceInput.value);
+      const icon = (iconInput.value.trim() || '☕');
+
+      if (!name || isNaN(price) || price <= 0) {
+        showToast('يرجى إدخال اسم الصنف وسعر صحيح.', 'warn');
+        return;
+      }
+
+      appState.products.push({
+        id: generateId('prod'),
+        name,
+        price: Number(price.toFixed(2)),
+        icon
+      });
+
+      saveState();
+      renderProductsGrid();
+      nameInput.value = '';
+      priceInput.value = '';
+      iconInput.value = '☕';
+      toggleAddProductForm();
+      showToast(`تمت إضافة "${name}" إلى القائمة.`, 'success');
+    }
+
+    function editProductPrice(productId, event) {
+      event.stopPropagation();
+      const prod = appState.products.find((p) => p.id === productId);
+      if (!prod) return;
+
+      const box = document.getElementById(`price-editor-${productId}`);
+      if (box) {
+        box.classList.toggle('hidden');
+        const input = document.getElementById(`price-input-${productId}`);
+        if (input && !box.classList.contains('hidden')) {
+          input.value = prod.price;
+          input.focus();
+          input.select();
+        }
+      }
+    }
+
+    function saveProductPrice(productId, event) {
+      event.stopPropagation();
+      const prod = appState.products.find((p) => p.id === productId);
+      const input = document.getElementById(`price-input-${productId}`);
+      if (!prod || !input) return;
+
+      const newPrice = parseFloat(input.value);
+      if (isNaN(newPrice) || newPrice <= 0) {
+        showToast('أدخل سعراً صحيحاً أكبر من صفر.', 'warn');
+        return;
+      }
+
+      prod.price = Number(newPrice.toFixed(2));
+      const cartItem = appState.cart.find((c) => c.productId === productId);
+      if (cartItem) cartItem.price = prod.price;
+
+      saveState();
+      renderProductsGrid();
+      renderCart();
+      showToast(`تم تحديث سعر "${prod.name}" إلى ${formatMoney(prod.price)}.`, 'success');
+    }
+
+    async function deleteProduct(productId, event) {
+      event.stopPropagation();
+      const prod = appState.products.find((p) => p.id === productId);
+      if (!prod) return;
+
+      const ok = await openConfirmModal(
+        'حذف صنف',
+        `هل تريد حذف الصنف "${prod.name}" من قائمة الكاشير؟`,
+        'حذف'
+      );
+      if (!ok) return;
+
+      appState.products = appState.products.filter((p) => p.id !== productId);
+      appState.cart = appState.cart.filter((c) => c.productId !== productId);
+      saveState();
+      renderProductsGrid();
+      renderCart();
+      showToast(`تم حذف "${prod.name}".`, 'info');
+    }
+
+    function renderProductsGrid() {
+      const grid = document.getElementById('products-grid');
+      if (appState.products.length === 0) {
+        grid.innerHTML = `<div class="col-span-full text-center py-8 text-sm text-espresso-600">لا توجد أصناف بعد. اضغط على "إضافة صنف جديد".</div>`;
+        return;
+      }
+
+      grid.innerHTML = appState.products.map((p) => `
+        <div onclick="addToCart('${escapeHTML(p.id)}')" class="pressable cursor-pointer group relative bg-cream-50 hover:bg-cream-100 border border-cream-200 hover:border-latte-400 rounded-2xl p-3.5 flex flex-col justify-between gap-2 transition">
+          <div class="flex items-start justify-between gap-1">
+            <span class="text-2xl leading-none">${escapeHTML(p.icon || '☕')}</span>
+            <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+              <button title="تعديل السعر" onclick="editProductPrice('${escapeHTML(p.id)}', event)" class="w-7 h-7 rounded-lg bg-white hover:bg-amber-100 text-espresso-700 border border-cream-200 text-xs flex items-center justify-center">
+                ✏️
+              </button>
+              <button title="حذف الصنف" onclick="deleteProduct('${escapeHTML(p.id)}', event)" class="w-7 h-7 rounded-lg bg-white hover:bg-red-100 text-red-600 border border-cream-200 text-xs flex items-center justify-center">
+                🗑️
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div class="font-extrabold text-espresso-900 text-sm sm:text-base leading-snug">${escapeHTML(p.name)}</div>
+            <div class="text-sm font-extrabold text-latte-600 mt-0.5">${formatMoney(p.price)}</div>
+          </div>
+
+          <div id="price-editor-${escapeHTML(p.id)}" class="hidden pt-2 border-t border-cream-200 flex items-center gap-1.5" onclick="event.stopPropagation()">
+            <input id="price-input-${escapeHTML(p.id)}" type="number" step="0.05" min="0.05" class="w-20 px-2 py-1 rounded-lg bg-white border border-latte-400 text-xs font-bold" />
+            <button onclick="saveProductPrice('${escapeHTML(p.id)}', event)" class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold">
+              حفظ
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function addToCart(productId) {
+      const prod = appState.products.find((p) => p.id === productId);
+      if (!prod) return;
+
+      const existing = appState.cart.find((c) => c.productId === productId);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        appState.cart.push({
+          productId: prod.id,
+          name: prod.name,
+          price: prod.price,
+          icon: prod.icon || '☕',
+          qty: 1
+        });
+      }
+      saveState();
+      renderCart();
+    }
+
+    function changeCartQty(productId, delta) {
+      const item = appState.cart.find((c) => c.productId === productId);
+      if (!item) return;
+
+      item.qty += delta;
+      if (item.qty <= 0) {
+        appState.cart = appState.cart.filter((c) => c.productId !== productId);
+      }
+      saveState();
+      renderCart();
+    }
+
+    function removeCartItem(productId) {
+      appState.cart = appState.cart.filter((c) => c.productId !== productId);
+      saveState();
+      renderCart();
+    }
+
+    function clearCart() {
+      appState.cart = [];
+      saveState();
+      renderCart();
+    }
+
+    function getCartTotal() {
+      return appState.cart.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.qty) || 0), 0);
+    }
+
+    function formatCartSummaryText() {
+      return appState.cart.map((item) => `${item.qty} ${item.name}`).join('، ');
+    }
+
+    function renderCart() {
+      const container = document.getElementById('cart-items');
+      const totalEl = document.getElementById('cart-total');
+
+      if (appState.cart.length === 0) {
+        container.innerHTML = `<div class="text-center py-8 text-sm text-espresso-600/80 bg-cream-50 rounded-2xl border border-dashed border-cream-300">السلة فارغة — اضغط على أي صنف لإضافته</div>`;
+        totalEl.textContent = '0.00';
+        return;
+      }
+
+      container.innerHTML = appState.cart.map((item) => {
+        const lineTotal = (Number(item.price) || 0) * (Number(item.qty) || 0);
+        return `
+          <div class="flex items-center justify-between gap-2 bg-cream-50 border border-cream-200 rounded-2xl p-2.5">
+            <div class="min-w-0 flex-1">
+              <div class="font-bold text-espresso-900 text-sm truncate">${escapeHTML(item.icon)} ${escapeHTML(item.name)}</div>
+              <div class="text-xs text-espresso-600">${formatMoney(item.price)} × ${item.qty} = <strong class="text-espresso-900">${formatMoney(lineTotal)}</strong></div>
+            </div>
+            <div class="flex items-center gap-1">
+              <button onclick="changeCartQty('${escapeHTML(item.productId)}', 1)" class="pressable w-8 h-8 rounded-xl bg-cream-200 hover:bg-cream-300 font-extrabold text-espresso-900">+</button>
+              <button onclick="changeCartQty('${escapeHTML(item.productId)}', -1)" class="pressable w-8 h-8 rounded-xl bg-cream-200 hover:bg-cream-300 font-extrabold text-espresso-900">-</button>
+              <button onclick="removeCartItem('${escapeHTML(item.productId)}')" class="pressable w-8 h-8 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold">✕</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      totalEl.textContent = formatMoney(getCartTotal());
+    }
+
+    function renderCashierShopSelect() {
+      const sel = document.getElementById('debt-shop-select');
+      if (appState.shops.length === 0) {
+        sel.innerHTML = `<option value="">لا توجد محلات — أضف محلاً أولاً</option>`;
+        return;
+      }
+      sel.innerHTML = appState.shops.map((s) => `
+        <option value="${escapeHTML(s.id)}">${escapeHTML(s.name)} (رصيده: ${formatMoney(calculateShopBalance(s))})</option>
+      `).join('');
+    }
+
+    function quickAddShopFromCashier() {
+      switchTab('debts');
+      setTimeout(() => {
+        const input = document.getElementById('new-shop-name');
+        if (input && !document.getElementById('tab-debts').classList.contains('hidden')) {
+          input.focus();
+        }
+      }, 120);
+    }
+
+    function checkoutCash() {
+      if (appState.cart.length === 0) {
+        showToast('السلة فارغة! اختر أصنافاً أولاً.', 'warn');
+        return;
+      }
+
+      const total = Number(getCartTotal().toFixed(2));
+      const summary = formatCartSummaryText();
+
+      appState.movements.unshift({
+        id: generateId('mov'),
+        date: getTodayISO(),
+        timestamp: new Date().toISOString(),
+        type: 'CASH_SALE',
+        summary,
+        amount: total
+      });
+
+      appState.cart = [];
+      saveState();
+      renderAll();
+      showToast(`تم تسجيل بيع كاش بقيمة ${formatMoney(total)} بنجاح!`, 'success');
+    }
+
+    function checkoutDebt() {
+      if (appState.cart.length === 0) {
+        showToast('السلة فارغة! اختر أصنافاً أولاً.', 'warn');
+        return;
+      }
+
+      const sel = document.getElementById('debt-shop-select');
+      const shopId = sel.value;
+      const shop = appState.shops.find((s) => s.id === shopId);
+
+      if (!shop) {
+        showToast('يرجى اختيار اسم المحل المجاور أو إضافة محل جديد.', 'warn');
+        return;
+      }
+
+      const total = Number(getCartTotal().toFixed(2));
+      const itemsText = formatCartSummaryText();
+
+      shop.entries.unshift({
+        id: generateId('ent'),
+        timestamp: new Date().toISOString(),
+        kind: 'DEBT',
+        itemsText,
+        amount: total
+      });
+
+      appState.selectedShopId = shop.id;
+      appState.cart = [];
+      saveState();
+      renderAll();
+      showToast(`تم تسجيل ${formatMoney(total)} على دين "${shop.name}".`, 'success');
+    }
+
+    function toggleExpenseForm() {
+      const form = document.getElementById('expense-form');
+      form.classList.toggle('hidden');
+      if (!form.classList.contains('hidden')) {
+        document.getElementById('expense-title').focus();
+      }
+    }
+
+    function handleAddExpense(e) {
+      e.preventDefault();
+      const titleInput = document.getElementById('expense-title');
+      const amountInput = document.getElementById('expense-amount');
+
+      const title = titleInput.value.trim();
+      const amount = parseFloat(amountInput.value);
+
+      if (!title || isNaN(amount) || amount <= 0) {
+        showToast('أدخل بيان المصروف ومبلغاً صحيحاً.', 'warn');
+        return;
+      }
+
+      appState.movements.unshift({
+        id: generateId('exp'),
+        date: getTodayISO(),
+        timestamp: new Date().toISOString(),
+        type: 'EXPENSE',
+        summary: title,
+        amount: Number(amount.toFixed(2))
+      });
+
+      titleInput.value = '';
+      amountInput.value = '';
+      toggleExpenseForm();
+      saveState();
+      renderAll();
+      showToast(`تم تسجيل مصروف "${title}" بقيمة ${formatMoney(amount)}.`, 'info');
+    }
+
+    async function deleteMovement(movementId) {
+      const mov = appState.movements.find((m) => m.id === movementId);
+      if (!mov) return;
+
+      const ok = await openConfirmModal(
+        'حذف حركة',
+        `هل تريد حذف هذه الحركة (${mov.summary} — ${formatMoney(mov.amount)})؟`,
+        'حذف'
+      );
+      if (!ok) return;
+
+      appState.movements = appState.movements.filter((m) => m.id !== movementId);
+      saveState();
+      renderAll();
+      showToast('تم حذف الحركة.', 'info');
+    }
+
+    function renderMovementsTable() {
+      const tbody = document.getElementById('daily-movements-tbody');
+      const dayFilter = document.getElementById('movements-day-filter')?.value || 'TODAY';
+      const today = getTodayISO();
+
+      const list = appState.movements.filter((m) => dayFilter === 'ALL' || m.date === today);
+
+      if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-espresso-600">لا توجد حركات مسجلة ضمن الفلتر المحدد.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = list.map((m) => {
+        const isSale = m.type === 'CASH_SALE';
+        return `
+          <tr class="hover:bg-cream-50">
+            <td class="py-3 px-3 text-xs text-espresso-600 whitespace-nowrap">${escapeHTML(formatDateTimeAR(m.timestamp))}</td>
+            <td class="py-3 px-3 whitespace-nowrap">
+              <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isSale ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}">
+                ${isSale ? 'بيع كاش' : 'مصروف نثري'}
+              </span>
+            </td>
+            <td class="py-3 px-3 font-semibold text-espresso-900">${escapeHTML(m.summary)}</td>
+            <td class="py-3 px-3 font-extrabold whitespace-nowrap ${isSale ? 'text-emerald-700' : 'text-red-700'}">
+              ${isSale ? '+' : '-'}${formatMoney(m.amount)}
+            </td>
+            <td class="py-3 px-3 text-center">
+              <button onclick="deleteMovement('${escapeHTML(m.id)}')" class="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold">
+                حذف
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function handleAddShop(e) {
+      e.preventDefault();
+      const input = document.getElementById('new-shop-name');
+      const name = input.value.trim();
+      if (!name) return;
+
+      const newShop = {
+        id: generateId('shop'),
+        name,
+        entries: []
+      };
+      appState.shops.push(newShop);
+      appState.selectedShopId = newShop.id;
+      input.value = '';
+      saveState();
+      renderAll();
+      showToast(`تمت إضافة المحل "${name}".`, 'success');
+    }
+
+    function openShopLedger(shopId) {
+      appState.selectedShopId = shopId;
+      saveState();
+      switchTab('debts');
+    }
+
+    function selectShop(shopId) {
+      appState.selectedShopId = shopId;
+      saveState();
+      renderDebtsSection();
+    }
+
+    async function deleteShop(shopId, event) {
+      event.stopPropagation();
+      const shop = appState.shops.find((s) => s.id === shopId);
+      if (!shop) return;
+
+      const ok = await openConfirmModal(
+        'حذف محل',
+        `هل تريد حذف "${shop.name}" وجميع حركات ديونه وسداداته؟`,
+        'حذف المحل'
+      );
+      if (!ok) return;
+
+      appState.shops = appState.shops.filter((s) => s.id !== shopId);
+      if (appState.selectedShopId === shopId) {
+        appState.selectedShopId = appState.shops[0]?.id ?? null;
+      }
+      saveState();
+      renderAll();
+      showToast(`تم حذف "${shop.name}".`, 'info');
+    }
+
+    function handleAddPayment(shopId, e) {
+      e.preventDefault();
+      const shop = appState.shops.find((s) => s.id === shopId);
+      if (!shop) return;
+
+      const amountInput = document.getElementById('payment-amount-input');
+      const noteInput = document.getElementById('payment-note-input');
+
+      const amount = parseFloat(amountInput.value);
+      const note = (noteInput.value.trim() || 'تسديد دفعة نقدية');
+
+      if (isNaN(amount) || amount <= 0) {
+        showToast('أدخل مبلغ دفعة صحيحاً أكبر من صفر.', 'warn');
+        return;
+      }
+
+      shop.entries.unshift({
+        id: generateId('pay'),
+        timestamp: new Date().toISOString(),
+        kind: 'PAYMENT',
+        itemsText: note,
+        amount: Number(amount.toFixed(2))
+      });
+
+      saveState();
+      renderAll();
+      showToast(`تم تسجيل دفعة بقيمة ${formatMoney(amount)} من "${shop.name}".`, 'success');
+    }
+
+    function handleAddManualDebt(shopId, e) {
+      e.preventDefault();
+      const shop = appState.shops.find((s) => s.id === shopId);
+      if (!shop) return;
+
+      const itemsInput = document.getElementById('manual-debt-items');
+      const amountInput = document.getElementById('manual-debt-amount');
+
+      const itemsText = itemsInput.value.trim();
+      const amount = parseFloat(amountInput.value);
+
+      if (!itemsText || isNaN(amount) || amount <= 0) {
+        showToast('أدخل تفاصيل الطلب ومبلغ الدين بشكل صحيح.', 'warn');
+        return;
+      }
+
+      shop.entries.unshift({
+        id: generateId('deb'),
+        timestamp: new Date().toISOString(),
+        kind: 'DEBT',
+        itemsText,
+        amount: Number(amount.toFixed(2))
+      });
+
+      saveState();
+      renderAll();
+      showToast(`تم إضافة دين بقيمة ${formatMoney(amount)} على "${shop.name}".`, 'success');
+    }
+
+    async function deleteShopEntry(shopId, entryId) {
+      const shop = appState.shops.find((s) => s.id === shopId);
+      if (!shop) return;
+
+      const ok = await openConfirmModal(
+        'حذف حركة من كشف الحساب',
+        'هل أنت متأكد من حذف هذه الحركة من كشف حساب المحل؟',
+        'حذف'
+      );
+      if (!ok) return;
+
+      shop.entries = shop.entries.filter((en) => en.id !== entryId);
+      saveState();
+      renderAll();
+      showToast('تم حذف الحركة من كشف الحساب.', 'info');
+    }
+
+    function buildShopStatementText(shop) {
+      const bal = calculateShopBalance(shop);
+      const lines = [
+        `☕ *كشف حساب — ${shop.name}*`,
+        `التاريخ: ${formatDateTimeAR(new Date().toISOString())}`,
+        `----------------------------`
+      ];
+
+      const ordered = [...(shop.entries || [])].reverse();
+      if (ordered.length === 0) {
+        lines.push('لا توجد حركات مسجلة.');
+      } else {
+        for (const en of ordered) {
+          const sign = en.kind === 'DEBT' ? '➕ دين' : '✅ سداد';
+          lines.push(`${sign}: ${formatMoney(en.amount)} (${en.itemsText})`);
+        }
+      }
+
+      lines.push(`----------------------------`);
+      lines.push(`*الرصيد المتبقي المستحق: ${formatMoney(bal)}*`);
+      return lines.join('
+');
+    }
+
+    function copyShopStatement(shopId) {
+      const shop = appState.shops.find((s) => s.id === shopId);
+      if (!shop) return;
+
+      const text = buildShopStatementText(shop);
+
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast('تم نسخ كشف الحساب! يمكنك لصقه مباشرة في واتساب.', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('تعذر النسخ التلقائي.', 'error');
+      }
+    }
+
+    function renderDebtsSection() {
+      const listEl = document.getElementById('shops-ledger-list');
+      const panelEl = document.getElementById('selected-shop-panel');
+
+      if (appState.shops.length === 0) {
+        listEl.innerHTML = `<p class="text-sm text-espresso-600 text-center py-6">لا توجد محلات مضافة بعد.</p>`;
+        panelEl.innerHTML = `<div class="text-center py-12 text-espresso-600">أضف محلاً مجاوراً من القائمة لبدء تسجيل الديون والدفعات.</div>`;
+        return;
+      }
+
+      if (!appState.shops.some((s) => s.id === appState.selectedShopId)) {
+        appState.selectedShopId = appState.shops[0].id;
+      }
+
+      listEl.innerHTML = appState.shops.map((shop) => {
+        const bal = calculateShopBalance(shop);
+        const isSelected = shop.id === appState.selectedShopId;
+        const isDebtor = bal > 0.001;
+
+        return `
+          <div onclick="selectShop('${escapeHTML(shop.id)}')" class="pressable cursor-pointer rounded-2xl p-3.5 border transition flex items-center justify-between gap-2 ${isSelected ? 'bg-espresso-900 text-cream-50 border-espresso-900 shadow' : 'bg-cream-50 hover:bg-cream-100 text-espresso-900 border-cream-200'}">
+            <div class="min-w-0">
+              <div class="font-extrabold text-sm sm:text-base truncate">${escapeHTML(shop.name)}</div>
+              <div class="text-xs ${isSelected ? 'text-cream-200/80' : 'text-espresso-600'} mt-0.5">
+                ${(shop.entries || []).length} حركة مسجلة
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="text-left">
+                <div class="text-[11px] ${isSelected ? 'text-cream-200/75' : 'text-espresso-600'}">المتبقي</div>
+                <div class="font-extrabold text-sm sm:text-base ${isSelected ? 'text-amber-300' : (isDebtor ? 'text-red-700' : 'text-emerald-700')}">
+                  ${formatMoney(bal)}
+                </div>
+              </div>
+              <button onclick="deleteShop('${escapeHTML(shop.id)}', event)" title="حذف المحل" class="w-8 h-8 rounded-xl ${isSelected ? 'bg-espresso-800 hover:bg-red-600 text-cream-100' : 'bg-white hover:bg-red-50 text-red-600 border border-cream-200'} text-xs flex items-center justify-center">
+                🗑️
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const activeShop = appState.shops.find((s) => s.id === appState.selectedShopId);
+      if (!activeShop) return;
+
+      const balance = calculateShopBalance(activeShop);
+      const totalDebtAdded = (activeShop.entries || [])
+        .filter((e) => e.kind === 'DEBT')
+        .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      const totalPaid = (activeShop.entries || [])
+        .filter((e) => e.kind === 'PAYMENT')
+        .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+      panelEl.innerHTML = `
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cream-200 pb-4">
+          <div>
+            <h3 class="text-xl font-extrabold text-espresso-900">${escapeHTML(activeShop.name)}</h3>
+            <p class="text-xs text-espresso-600 mt-0.5">
+              إجمالي الديون: <strong>${formatMoney(totalDebtAdded)}</strong> · إجمالي المسدد: <strong class="text-emerald-700">${formatMoney(totalPaid)}</strong>
+            </p>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <div class="bg-cream-100 border border-cream-200 rounded-2xl px-4 py-2 text-center">
+              <span class="block text-[11px] text-espresso-600 font-bold">الرصيد المتبقي</span>
+              <span class="text-xl font-extrabold ${balance > 0.001 ? 'text-red-700' : 'text-emerald-700'}">${formatMoney(balance)}</span>
+            </div>
+            <button onclick="copyShopStatement('${escapeHTML(activeShop.id)}')" class="pressable px-3.5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow flex items-center gap-1.5">
+              <span>📋</span>
+              <span>نسخ كشف الحساب</span>
+            </button>
+          </div>
+        </div>
+
+        <form onsubmit="handleAddPayment('${escapeHTML(activeShop.id)}', event)" class="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 space-y-3">
+          <div class="text-sm font-extrabold text-emerald-950 flex items-center gap-1.5">
+            <span>💵</span>
+            <span>تسجيل دفعة سداد من "${escapeHTML(activeShop.name)}"</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <input id="payment-amount-input" type="number" step="0.05" min="0.05" required placeholder="مبلغ الدفعة" class="px-3.5 py-2.5 rounded-xl bg-white border border-emerald-300 text-sm font-bold focus:outline-none focus:border-emerald-500" />
+            <input id="payment-note-input" type="text" placeholder="ملاحظة (مثال: دفعة أسبوعية)" class="px-3.5 py-2.5 rounded-xl bg-white border border-emerald-300 text-sm focus:outline-none focus:border-emerald-500" />
+            <button type="submit" class="pressable py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-extrabold shadow">
+              تأكيد السداد
+            </button>
+          </div>
+        </form>
+
+        <form onsubmit="handleAddManualDebt('${escapeHTML(activeShop.id)}', event)" class="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 space-y-3">
+          <div class="text-sm font-extrabold text-amber-950 flex items-center gap-1.5">
+            <span>➕</span>
+            <span>إضافة طلب دين مباشر لهذا المحل</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <input id="manual-debt-items" type="text" required placeholder="الطلبات (مثال: 4 قهوة وسط)" class="px-3.5 py-2.5 rounded-xl bg-white border border-amber-300 text-sm focus:outline-none focus:border-latte-500" />
+            <input id="manual-debt-amount" type="number" step="0.05" min="0.05" required placeholder="مبلغ الدين" class="px-3.5 py-2.5 rounded-xl bg-white border border-amber-300 text-sm font-bold focus:outline-none focus:border-latte-500" />
+            <button type="submit" class="pressable py-2.5 px-4 rounded-xl bg-latte-600 hover:bg-espresso-800 text-white text-sm font-extrabold shadow">
+              إضافة على الدين
+            </button>
+          </div>
+        </form>
+
+        <div class="space-y-2.5">
+          <h4 class="text-sm font-extrabold text-espresso-800">سجل الحركات (الديون والدفعات)</h4>
+          ${
+            (activeShop.entries || []).length === 0
+              ? `<div class="text-center py-8 text-sm text-espresso-600 bg-cream-50 rounded-2xl">لا توجد حركات مسجلة لهذا المحل بعد.</div>`
+              : `<div class="space-y-2 max-h-80 overflow-y-auto pr-0.5">
+                  ${activeShop.entries.map((en) => {
+                    const isDebt = en.kind === 'DEBT';
+                    return `
+                      <div class="flex items-center justify-between gap-3 p-3 rounded-2xl border ${isDebt ? 'bg-red-50/40 border-red-100' : 'bg-emerald-50/40 border-emerald-100'}">
+                        <div class="min-w-0">
+                          <div class="flex items-center gap-2">
+                            <span class="text-xs font-extrabold px-2 py-0.5 rounded-full ${isDebt ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}">
+                              ${isDebt ? 'سحب دين (+)' : 'تسديد دفعة (-)'}
+                            </span>
+                            <span class="text-[11px] text-espresso-600">${escapeHTML(formatDateTimeAR(en.timestamp))}</span>
+                          </div>
+                          <div class="text-sm font-bold text-espresso-900 mt-1">${escapeHTML(en.itemsText)}</div>
+                        </div>
+                        <div class="flex items-center gap-2.5 shrink-0">
+                          <span class="font-extrabold text-base ${isDebt ? 'text-red-700' : 'text-emerald-700'}">
+                            ${isDebt ? '+' : '-'}${formatMoney(en.amount)}
+                          </span>
+                          <button onclick="deleteShopEntry('${escapeHTML(activeShop.id)}', '${escapeHTML(en.id)}')" class="px-2 py-1 rounded-lg bg-white hover:bg-red-100 text-red-600 border border-cream-200 text-xs font-bold">
+                            حذف
+                          </button>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>`
+          }
+        </div>
+      `;
+    }
+
+    function updatePurchasePreview() {
+      const qty = parseFloat(document.getElementById('pur-qty').value) || 0;
+      const unit = parseFloat(document.getElementById('pur-unit-price').value) || 0;
+      const total = Math.max(0, qty * unit);
+      document.getElementById('pur-total-preview').textContent = formatMoney(total);
+    }
+
+    function handleAddPurchase(e) {
+      e.preventDefault();
+      const itemInput = document.getElementById('pur-item');
+      const catInput = document.getElementById('pur-category');
+      const qtyInput = document.getElementById('pur-qty');
+      const priceInput = document.getElementById('pur-unit-price');
+      const supInput = document.getElementById('pur-supplier');
+      const notesInput = document.getElementById('pur-notes');
+
+      const item = itemInput.value.trim();
+      const category = catInput.value;
+      const qty = parseFloat(qtyInput.value);
+      const unitPrice = parseFloat(priceInput.value);
+      const supplier = supInput.value.trim();
+      const notes = notesInput.value.trim();
+
+      if (!item || isNaN(qty) || qty <= 0 || isNaN(unitPrice) || unitPrice < 0) {
+        showToast('يرجى إدخال اسم الصنف والكمية والسعر بشكل صحيح.', 'warn');
+        return;
+      }
+
+      const total = Number((qty * unitPrice).toFixed(2));
+
+      appState.purchases.unshift({
+        id: generateId('pur'),
+        date: getTodayISO(),
+        item,
+        category,
+        qty,
+        unitPrice: Number(unitPrice.toFixed(2)),
+        total,
+        supplier,
+        notes
+      });
+
+      itemInput.value = '';
+      qtyInput.value = '1';
+      priceInput.value = '';
+      supInput.value = '';
+      notesInput.value = '';
+      updatePurchasePreview();
+
+      saveState();
+      renderAll();
+      showToast(`تم تسجيل فاتورة "${item}" بقيمة ${formatMoney(total)}.`, 'success');
+    }
+
+    async function deletePurchase(purchaseId) {
+      const pur = appState.purchases.find((p) => p.id === purchaseId);
+      if (!pur) return;
+
+      const ok = await openConfirmModal(
+        'حذف فاتورة مشتريات',
+        `هل تريد حذف فاتورة "${pur.item}" (${formatMoney(pur.total)})؟`,
+        'حذف'
+      );
+      if (!ok) return;
+
+      appState.purchases = appState.purchases.filter((p) => p.id !== purchaseId);
+      saveState();
+      renderAll();
+      showToast('تم حذف فاتورة المشتريات.', 'info');
+    }
+
+    function renderPurchases() {
+      const tbody = document.getElementById('purchases-tbody');
+      const searchVal = (document.getElementById('pur-search')?.value || '').trim().toLowerCase();
+      const catVal = document.getElementById('pur-filter-category')?.value || 'ALL';
+
+      const filtered = appState.purchases.filter((p) => {
+        const matchesCat = catVal === 'ALL' || p.category === catVal;
+        const matchesText =
+          !searchVal ||
+          String(p.item || '').toLowerCase().includes(searchVal) ||
+          String(p.supplier || '').toLowerCase().includes(searchVal) ||
+          String(p.notes || '').toLowerCase().includes(searchVal);
+        return matchesCat && matchesText;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-espresso-600">لا توجد فواتير مطابقة للبحث أو الفلتر.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map((p) => `
+        <tr class="hover:bg-cream-50">
+          <td class="py-3 px-3 text-xs text-espresso-600 whitespace-nowrap">${escapeHTML(p.date)}</td>
+          <td class="py-3 px-3 font-extrabold text-espresso-900">${escapeHTML(p.item)}</td>
+          <td class="py-3 px-3 whitespace-nowrap">
+            <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-cream-200 text-espresso-800">${escapeHTML(p.category)}</span>
+          </td>
+          <td class="py-3 px-3 font-semibold">${p.qty}</td>
+          <td class="py-3 px-3 font-semibold">${formatMoney(p.unitPrice)}</td>
+          <td class="py-3 px-3 font-extrabold text-espresso-900 whitespace-nowrap">${formatMoney(p.total)}</td>
+          <td class="py-3 px-3 text-xs text-espresso-700">
+            ${p.supplier ? `<div><strong>المورد:</strong> ${escapeHTML(p.supplier)}</div>` : ''}
+            ${p.notes ? `<div class="text-espresso-600">${escapeHTML(p.notes)}</div>` : ''}
+            ${!p.supplier && !p.notes ? '<span class="text-espresso-400">—</span>' : ''}
+          </td>
+          <td class="py-3 px-3 text-center">
+            <button onclick="deletePurchase('${escapeHTML(p.id)}')" class="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold">
+              حذف
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderAll() {
+      renderDashboard();
+      renderProductsGrid();
+      renderCart();
+      renderCashierShopSelect();
+      renderMovementsTable();
+      renderDebtsSection();
+      renderPurchases();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      updatePinUI();
+      const initialTab = appState.activeTab || 'dashboard';
+      if ((initialTab === 'dashboard' || initialTab === 'debts') && isPinActive() && !isProtectedUnlocked) {
+        applyTabChange('cashier');
+        switchTab(initialTab);
+      } else {
+        applyTabChange(initialTab);
+      }
+      updatePurchasePreview();
+    });
+  </script>
+</body>
+</html>
